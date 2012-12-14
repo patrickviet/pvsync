@@ -58,6 +58,10 @@ my $conf = Config::Tiny->read($configfile)
 
 # Logs
 my $log_max_size = $conf->{_main}->{log_max_size};
+my @exclude_root_list = ();
+if(exists $conf->{_main}->{exclude}) {
+    @exclude_root_list = split(/\ /, $conf->{_main}->{exclude});
+}
 
 #-------------------------------------------------------------------------------
 my $inotify = new Linux::Inotify2
@@ -77,10 +81,13 @@ foreach my $username ( keys %{ $conf->{_users} } ) {
 
 foreach my $module ( keys %$conf ) {
     next if $module =~ m/^\_/;
+    my @exc = @exclude_root_list;
+    if($conf->{$module}->{exclude}) { @exc = (@exc, split(/\ /,$conf->{$module}->{exclude})); }
     $modules->{$module} = {
         path       => $conf->{$module}->{path},
         log_start  => 1,
         log_curpos => 1,
+        exclude => \@exc,
         # start at 1 so that client starting at 0 auto resyncs
     };
 }
@@ -306,6 +313,14 @@ sub client_disconnect {
 
 sub add_recursive_watch {
     my $dir = shift;
+
+    # check for global ignore
+    my @spdir = split(/\//, $dir);
+    my $dirfile = pop @spdir;
+    foreach(@exclude_root_list) {
+        if($dirfile =~ m/^$_/) { print "ignoring $dir\n"; return; }
+    }
+
     $inotify->watch( $dir,
         IN_CLOSE_WRITE | IN_CREATE | IN_DELETE | IN_IGNORED | IN_MOVED_TO |
           IN_MOVED_FROM | IN_ATTRIB )
@@ -359,6 +374,13 @@ sub send_notifications {
 
 sub ievent {
     my $kernel = $_[KERNEL];
+
+    # TODO FIXME
+    # http://www.ibm.com/developerworks/linux/library/l-inotify/index.html?ca=drs-
+    # ADD AN EVENT QUEUE
+    # This might be why I have missed some file changes in the past because when rapid
+    # file changes occured...
+
     foreach my $ev ( $inotify->read ) {
         my $file = $ev->fullname;
 
@@ -378,6 +400,7 @@ sub ievent {
         }
 
         if ( $ev->IN_CLOSE_WRITE ) {
+
             unless ( $file =~ m/\/\.pureftpd-(upload|rename)/ ) {
                 send_sync( 'write', $file );
             }
