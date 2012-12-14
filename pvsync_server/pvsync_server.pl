@@ -316,7 +316,12 @@ sub add_recursive_watch {
     opendir( my $dir_fh, $dir );
     foreach my $file ( readdir($dir_fh) ) {
         next if $file eq '.' or $file eq '..';
-        if ( -d "$dir/$file" ) {
+        
+        # special lstat to ignore symlinks ...
+        my @st = lstat("$dir/$file");
+        my $mode = $st[2];
+        my $dtype = ($mode & 0170000)>>12;
+        if ($dtype == 4 and $file ne '.') {
             add_recursive_watch("$dir/$file");
         }
     }
