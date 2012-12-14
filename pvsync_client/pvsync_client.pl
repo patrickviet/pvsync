@@ -69,9 +69,9 @@ $poe_kernel->run();
 
 sub rsync_check_timeout {
   my ($kernel,$heap) = @_[KERNEL,HEAP];
-  print "rsync timeout 1\n";
+  print "rsync timeout step 1\n";
   if ($heap->{rsync}) {
-    print "rsync timeout 2\n";
+    print "rsync timeout step 2\n";
     if ($heap->{rsync_stamp} + 60 < scalar time()) {
       print "rsync timeout 3\n";
       $heap->{rsync}->event( CloseEvent => 'rsync_end_error' );
